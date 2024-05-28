@@ -1,0 +1,46 @@
+import geopandas as gpd
+import networkx as nx
+from shapely.geometry import Point
+
+# Load the GeoPackage file
+geopackage_path = 'SDOT_Intersections_1571182204229254207.gpkg'
+gdf = gpd.read_file(geopackage_path, layer='SDOT_Intersections_Web')
+
+# Initialize a graph
+G = nx.Graph()
+
+# Add nodes to the graph
+for idx, row in gdf.iterrows():
+    point = row['geometry']
+    G.add_node((point.x, point.y))
+
+# Define a distance threshold (e.g., 0.01 degrees, adjust based on your data)
+distance_threshold = 0.01
+
+# Add edges based on the distance threshold
+for idx1, point1 in enumerate(gdf.geometry):
+    for idx2, point2 in enumerate(gdf.geometry):
+        if idx1 != idx2 and point1.distance(point2) <= distance_threshold:
+            G.add_edge((point1.x, point1.y), (point2.x, point2.y), weight=point1.distance(point2))
+
+# Function to map coordinates to node IDs
+def map_coordinates_to_ids(G):
+    coord_to_id = {coord: idx for idx, coord in enumerate(G.nodes)}
+    return coord_to_id
+
+coord_to_id = map_coordinates_to_ids(G)
+
+# Save the graph to a file
+output_file = 'graph.txt'
+with open(output_file, 'w') as f:
+    for node, edges in G.adjacency():
+        node_id = coord_to_id[node]
+        edges_list = []
+        for neighbor, attributes in edges.items():
+            neighbor_id = coord_to_id[neighbor]
+            weight = attributes['weight']
+            edges_list.append(f"{neighbor_id},{weight}")
+        edges_str = ";".join(edges_list)
+        f.write(f"{node_id}={edges_str}\n")
+
+print(f"Graph saved to {output_file}")
